@@ -1,3 +1,14 @@
+// 151023 htvekov
+// Revised default register value (rval) from 0 to -1
+// This to ensure register 0x004A water flow with value 0 to be updated as sensor in HA
+//
+// Added register 0x009B - HiRes Energy register (kWh with two decimals precision)
+// HiRes register can be read on the Multical 602 module. Unfortunately there's no reply on Multical 403 modules 
+// How to activate and reset the Hires register is currently unknown
+// Once started, register will act as a total increasing register and continue to provide values in 10mWh units
+// Delta_base will have to be calculated as difference between register 0x003C and 0x009B (converted to MWh)
+// Delta_base can then be added to register 0x009B to provide a HiRes sensor output in MWh with resolution of 0.01 kWh
+//
 #ifndef _KMP_
 #define _KMP_
 
@@ -16,13 +27,17 @@ enum DestinationAddress : unsigned char
 // Kamstrup Multical 402
 // The registers we want to get out of the meter
 const unsigned int registerIds[] = {
-    0x003C, // 60 - Heat energy
+    0x003C, // 60 - Heat energy - Standard resolution: 1 kwh)
     0x0050, // 80 - Current power
     0x0056, // 86 - Current forward temperature
     0x0057, // 87 - Current return temperature
     0x0059, // 89 - Current differential temperature
     0x004A, // 74 - Current water flow
-    0x0044  // 68 - Volume register V1
+    0x0044,  // 68 - Volume register V1
+    0x009B // 155 - Heat energy - High resolution: xx kwh)
+    // 0x03EA, // XXXX - Time
+    // 0x03EB, // XXXX - Date
+    // 0x03E9  // XXXX - Serial number
 };
 
 // The name of the registers we want to get out of the meter in the same order as above
@@ -33,7 +48,8 @@ const char *kregstrings[] = {
     "Temperature t2",
     "Temperature diff",
     "Flow",
-    "Volume"};
+    "Volume",
+    "Energy_high"};
 
 static const char *TAG = "Multical402";
 
@@ -74,6 +90,10 @@ public:
     {
         return KMP::Read(registerIds[6]);
     }
+    float HeatEnergy_high()
+    {
+        return KMP::Read(registerIds[7]);
+    }
 
 private:
     UARTDevice *_uart;
@@ -83,7 +103,7 @@ private:
     {
 
         char recvmsg[40]; // buffer of bytes to hold the received data
-        float rval = 0;   // this will hold the final value
+        float rval = -1;   // this will hold the final value
 
         // prepare message to send and send it
         char sendmsg[] = {HEAT_METER, 0x10, 0x01,

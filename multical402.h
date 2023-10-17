@@ -1,3 +1,6 @@
+// 151023 htvekov
+// Added sensor_energy_high - HiRes Energy register
+
 #ifndef _M402_
 #define _M402_
 
@@ -16,6 +19,7 @@ public:
   Sensor *sensor_tempdiff{nullptr};
   Sensor *sensor_flow{nullptr};
   Sensor *sensor_volume{nullptr};
+  Sensor *sensor_energy_high{nullptr};
 
   // constructor
   Multical402(
@@ -27,14 +31,16 @@ public:
       Sensor *m__tout,
       Sensor *m__tdiff,
       Sensor *m__flow,
-      Sensor *m__volume) : PollingComponent(update_interval),
-                           sensor_energy(m__energy),
-                           sensor_power(m__power),
-                           sensor_tempin(m__tin),
-                           sensor_tempout(m__tout),
-                           sensor_tempdiff(m__tdiff),
-                           sensor_flow(m__flow),
-                           sensor_volume(m__volume)
+      Sensor *m__volume,
+      Sensor *m__energy_high) : PollingComponent(update_interval),
+                                sensor_energy(m__energy),
+                                sensor_power(m__power),
+                                sensor_tempin(m__tin),
+                                sensor_tempout(m__tout),
+                                sensor_tempdiff(m__tdiff),
+                                sensor_flow(m__flow),
+                                sensor_volume(m__volume),
+                                sensor_energy_high(m__energy_high)
   {
     _kmp = new KMP(uart_bus);
   }
@@ -48,32 +54,36 @@ public:
     ESP_LOGD(TAG, "Start update");
 
     float energy = _kmp->HeatEnergy();
-    if (energy)
+    if (energy != -1)
       sensor_energy->publish_state(energy);
-
+    
     float volume = _kmp->Volume();
-    if (volume)
+    if (volume != -1)
       sensor_volume->publish_state(volume);
 
     float tempin = _kmp->CurrentForwardTemperature();
-    if (tempin)
+    if (tempin != -1)
       sensor_tempin->publish_state(tempin);
 
     float tempout = _kmp->CurrentReturnTemperature();
-    if (tempout)
+    if (tempout != -1)
       sensor_tempout->publish_state(tempout);
 
     float tempdiff = _kmp->CurrentDifferentialTemperature();
-    if (tempdiff)
+    if (tempdiff != -1)
       sensor_tempdiff->publish_state(tempdiff);
 
     float power = _kmp->CurrentPower();
-    if (power)
+    if (power != -1)
       sensor_power->publish_state(power);
 
     float flow = _kmp->CurrentWaterFlow();
-    if (flow)
+    if (flow != -1)
       sensor_flow->publish_state(flow);
+
+    float energy_high = _kmp->HeatEnergy_high();
+    if (energy_high != -1)
+      sensor_energy_high->publish_state(energy_high);
 
     ESP_LOGD(TAG, "End update");
   }
