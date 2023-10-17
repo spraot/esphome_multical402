@@ -1,20 +1,17 @@
 # Kamstrup Multical 602/402 & 403 for esphome
 
-This fork contains following changes:
+## This fork contains following changes: ##
 
-171023
-
+### 171023
 Revised:
-Registers returning zero values was previously ignored and not sensor updated (was treated as an error read). Now sensors will be updated with zero values.
-
-Timeout between reads is revised to 5 minutes = 30.000 millis 
+- Registers returning zero values was previously ignored and not sensor updated (was treated as an error read). Now sensors will be updated with zero values
+- Timeout between reads is revised to 5 minutes = 30.000 millis
 
 Added:
-HiRes energy register read in kmp.h and multical402.h
-
-Revised multical602.yaml to calculate and publish a new high resolution energy sensor.
-
-Tested and working on a Multical 602 device.  
+- HiRes energy register handling added to kmp.h and multical402.h
+- multical402.yaml renamed to multical602.yaml
+- Revised multical602.yaml to calculate and publish a new high resolution energy sensor
+- Tested and working on a Multical 602 device
 
 ## Introduction
 
