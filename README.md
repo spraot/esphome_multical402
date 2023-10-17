@@ -1,4 +1,4 @@
-# Kamstrup Multical 602/402 & 403 for esphome
+# Kamstrup Multical 602/402 & 403 for ESPHome
 
 ## This fork contains following changes: ##
 
