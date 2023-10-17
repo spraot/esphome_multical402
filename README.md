@@ -7,9 +7,13 @@ This fork contains following changes:
 Revised:
 Registers returning zero values was previously ignored and not sensor updated (was treated as an error read). Now sensors will be updated with zero values.
 
+Timeout between reads is revised to 5 minutes = 30.000 millis 
+
 Added:
 HiRes energy register read in kmp.h and multical402.h
+
 Revised multical602.yaml to calculate and publish a new high resolution energy sensor.
+
 Tested and working on a Multical 602 device.  
 
 ## Introduction
