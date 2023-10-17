@@ -3,6 +3,7 @@
 This fork contains following changes:
 
 171023
+
 Revised:
 Registers returning zero values was previously ignored and not sensor updated (was treated as an error read). Now sensors will be updated with zero values.
 
