@@ -5,8 +5,8 @@
 ### 171023
 Revised:
 - Registers returning zero values was previously ignored and not sensor updated (was treated as an error read). Now sensors will be updated with zero values
-- Timeout between reads is revised to 5 minutes = 30.000 millis
-
+- Timeout between register reads is revised to 5 minutes = 30.000 millis
+- timeout value in kmp.h revised from 200 to 250 ms.
 Added:
 - HiRes energy register handling added to kmp.h and multical402.h
 - multical402.yaml renamed to multical602.yaml
