@@ -15,7 +15,7 @@
 #include "esphome.h"
 
 // Kamstrup timeout after transmit
-const unsigned char TIMEOUT = 200;
+const unsigned char TIMEOUT = 250;
 
 enum DestinationAddress : unsigned char
 {
