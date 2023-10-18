@@ -5,7 +5,7 @@
 ### 171023
 Revised:
 - Registers returning zero values was previously ignored and not sensor updated (was treated as an error read). Now sensors will be updated with zero values
-- Timeout between register reads is revised to 5 minutes = 30.000 millis
+- Register reads throttle is revised from 1- to 5 minutes = 30.000 millis
 - timeout value in kmp.h revised from 200 to 250 ms.
 
 Added:
