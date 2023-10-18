@@ -57,7 +57,9 @@ esphome:
       - lambda: |-
           ESP_LOGI("custom", "API connect + 80 seconds. The value of delta_base is currently: %f", id(delta_base));
           if ((id(delta_base) == -1) && (!isnan(id(m_energy).raw_state)) && (!isnan(id(m_energy_high).raw_state))) {
-            id(delta_base) = id(m_energy).state - id(m_energy_high).state;
+            id(temp) = roundf(id(m_energy).state * 1000);
+            id(energy_lowres_2digits) = id(temp) / 1000;
+            id(delta_base) = id(energy_lowres_2digits) - id(m_energy_high).state;
             ESP_LOGI("custom", "delta_base has now been calculated to: %f MWh", id(delta_base));
           } else if (id(delta_base) == -1) {
             ESP_LOGW("custom", "First attempt - delta_base could NOT be calculated. Value still undefined: %f", id(delta_base));
@@ -67,7 +69,9 @@ esphome:
       - delay: !lambda "return ${update_millis};"
       - lambda: |-
           if ((id(delta_base) == -1) && (!isnan(id(m_energy).raw_state)) && (!isnan(id(m_energy_high).raw_state))) {
-            id(delta_base) = id(m_energy).state - id(m_energy_high).state;
+            id(temp) = roundf(id(m_energy).state * 1000);
+            id(energy_lowres_2digits) = id(temp) / 1000;
+            id(delta_base) = id(energy_lowres_2digits) - id(m_energy_high).state;
             ESP_LOGI("custom", "Final attempt - delta_base has now been calculated to: %f MWh", id(delta_base));
           } else if (id(delta_base) == -1) {
             ESP_LOGE("custom", "Final attempt - delta_base could NOT be calculated. Value still undefined: %f", id(delta_base));
@@ -126,10 +130,20 @@ globals:
   # Define delta_base with -1 as initial value. delta_base will be calculated upon ESPHome boot
   # If first calculation attempt fails, code will wait for the defined wait period between registers reads and retry once more
   # If the delta_base can't be calculated, then code will instead return the 'normal' low resolution register value
+  #
+  # Double variables needed as float will not cope with the fraction sizes for the energy registers 
   - id: delta_base
-    type: float
+    type: double
     restore_value: no
     initial_value: "-1"
+  - id: energy_lowres_2digits
+    type: double
+    restore_value: no
+    initial_value: "0"
+  - id: temp
+    type: double
+    restore_value: no
+    initial_value: "0"
 
 
 # Multical Custom Sensor (first variable is update interval in ms; 3600000 is 1 hour)
@@ -178,8 +192,9 @@ sensor:
   unit_of_measurement: "%"
   entity_category: "diagnostic"
 
-# Calculated high resolution Energy sensor with delta base value added to the high resolution Energy register
+# Calculated high resolution Energy sensor - delta base value added to the raw high resolution energy register
 # This high resolution sensor will provide 2 decimals resolution -> 0.01 kWh
+# If high resolution sensor for some reason can't be calculated (e.g. missing register data), it will return the low resolution energy register value instead  
 - name: "Energy HiRes"
   platform: template
   id: m_energy_hires
@@ -194,17 +209,19 @@ sensor:
         ESP_LOGI("custom", "delta_base set. Return calculated energy high resolution value: %f MWh", (id(m_energy_high).state + id(delta_base)));
         return (id(m_energy_high).state + id(delta_base));
       } else {
-        ESP_LOGW("custom", "delta_base NOT set. Return standard low resolution energy register value: %f MWh", (id(m_energy).state));
-        return (id(m_energy).state);
+        id(temp) = roundf(id(m_energy).state * 1000);
+        id(energy_lowres_2digits) = id(temp) / 1000;
+        ESP_LOGW("custom", "delta_base NOT set. Return standard low resolution energy register value: %f MWh", id(energy_lowres_2digits));
+        return id(energy_lowres_2digits);
       }
 
 # Multical Custom Sensors
 # High resolution energy register in MWh with five significant decimals
 # Sensor is base for Multical Energy HiRes sensor calculation
 # Sensor could be made internal, as it's not really needed in HA
-# Register returns a total increasing value with unknown offset
+# Register returns a total increasing value with an unknown offset
 # Currently it's unknown when resister is reset and how to trigger this (no optical sensor on module for xx hours ?)
-- name: "Energy delta"
+- name: "Energy HiRes raw"
   platform: template
   id: m_energy_high
   #internal: true
