@@ -67,15 +67,15 @@ esphome:
               id(cooling_energy_base) = id(energy_lowres_2digits);
               id(cooling_last_update).publish_state(id(homeassistant_time).now().timestamp);
               id(cooling_last_update_retained) = id(cooling_last_update).state;
-              ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now both are set to current register values: %f MWh and %f m3", id(cooling_energy_base), id(cooling_volume_base));
+              ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now both are set to current register values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));
             } else {
               id(cooling_last_update).publish_state(id(cooling_last_update_retained));
-              ESP_LOGI("custom", "Cooling base variables were retained. Current values: %f MWh  %f m3", id(cooling_energy_base), id(cooling_volume_base));  
+              ESP_LOGI("custom", "Cooling base variables were retained. Current values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));  
             }
           } else if (id(delta_base) == -1) {
             ESP_LOGW("custom", "First attempt - Base values could NOT be calculated. Values are still undefined");
             if (id(cooling_volume_base) == -1 || id(cooling_energy_base) == -1) {
-              ESP_LOGW("custom", "First attempt - One or both cooling base variables were NOT set! Current base values: %f MWh  %f m3", id(cooling_energy_base), id(cooling_volume_base)); 
+              ESP_LOGW("custom", "First attempt - One or both cooling base variables were NOT set! Current base values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base)); 
             }
             ESP_LOGI("custom", "Wait for %d seconds before attempting second and final delta_base calculation", (int(${update_millis})/1000));
           }
@@ -91,15 +91,15 @@ esphome:
               id(cooling_energy_base) = id(energy_lowres_2digits);
               id(cooling_last_update).publish_state(id(homeassistant_time).now().timestamp);
               id(cooling_last_update_retained) = id(cooling_last_update).state;
-              ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now both are set to current register values: %f MWh and %f m3", id(cooling_energy_base), id(cooling_volume_base));
+              ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now both are set to current register values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));
             } else {
               id(cooling_last_update).publish_state(id(cooling_last_update_retained));
-              ESP_LOGI("custom", "Cooling base variables were retained. Current values: %f MWh  %f m3", id(cooling_energy_base), id(cooling_volume_base));  
+              ESP_LOGI("custom", "Cooling base variables were retained. Current values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));  
             }
           } else if (id(delta_base) == -1) {
             ESP_LOGE("custom", "Final attempt - delta_base could NOT be calculated. Value still undefined: %f", id(delta_base));
             if (id(cooling_volume_base) == -1 || id(cooling_energy_base) == -1) {
-             ESP_LOGE("custom", "One or both cooling base variables were NOT set! Cooling average sensor output invalid!. Current base values: %f MWh and %f m3", id(cooling_energy_base), id(cooling_volume_base)); 
+             ESP_LOGE("custom", "One or both cooling base variables were NOT set! Cooling average sensor output invalid!. Current base values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base)); 
             }
           }
 
@@ -227,24 +227,24 @@ custom_component:
 
 binary_sensor:
   - platform: status
-    name: "Node status"
+    name: "Node Status"
   
 
 sensor:
 # Uptime sensor / WiFi strength in db and percentage
-- platform: uptime
-  name: "Uptime sensor"
+- name: "Uptime Sensor"
+  platform: uptime
 
-- platform: wifi_signal
-  id: wifi_strength_db
-  name: "WiFi strength db"
+- name: "WiFi Strength dBm"
+  platform: wifi_signal
+  id: wifi_strength_dbm
   update_interval: 60s
   entity_category: "diagnostic"
 
 # Reports the WiFi signal strength in percentage
-- platform: copy
-  source_id: wifi_strength_db
-  name: "WiFi strength pct."
+- name: "WiFi Strength %"
+  platform: copy
+  source_id: wifi_strength_dbm
   filters:
     - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
   unit_of_measurement: "%"
@@ -252,11 +252,11 @@ sensor:
 
 # Timestamp sensor for last Cooling ability sensor reset
 # Sensor is updated via calls from on_boot code when timestamp changes
-- name: "Cooling average timestamp"
+- name: "Cooling Average Timestamp"
   platform: template
   id: cooling_last_update
-  device_class: timestamp
   update_interval: never
+  device_class: timestamp
 
 # Cooling ability sensor that shows average cooling in °C for the consumed volume of district heating water
 # In order to get the best tariff rates, some district heating distributors requires the YEARLY average cooling ability to be at least 30°C !
@@ -266,7 +266,7 @@ sensor:
 #
 # Note: Energy HiRes sensor update is called from lambda for this sensor
 # If your Energy registers UOM is kWh, then change 860 to 0.86 in the sensor calculation below
-- name: "Cooling average"
+- name: "Cooling Average"
   platform: template
   id: cooling
   update_interval: 60s
@@ -279,7 +279,7 @@ sensor:
       id(m_energy_hires).update();
       double energy_consumed = id(m_energy_hires).state - id(cooling_energy_base);
       double volume_consumed = id(m_volume).state - id(cooling_volume_base);
-      ESP_LOGI("custom", "Base MWh: %f  Base vol: %f  Consumed MWh: %f  Consumed Vol: %f  Calc. cooling: %f", id(cooling_energy_base), id(cooling_volume_base), energy_consumed, volume_consumed, (energy_consumed * 860) / volume_consumed);
+      ESP_LOGI("custom", "Base MWh: %f  Base m³: %f  Consumed MWh: %f  Consumed m³: %f  Calc. cooling °C: %f", id(cooling_energy_base), id(cooling_volume_base), energy_consumed, volume_consumed, (energy_consumed * 860) / volume_consumed);
       return (energy_consumed * ${energy_uom}) / volume_consumed;
 
 # Calculated high resolution Energy sensor - delta base value added to the raw high resolution energy register
@@ -307,12 +307,13 @@ sensor:
       }
 
 # Multical Custom Sensors
+#
 # High resolution energy register in MWh with five significant decimals
 # Sensor is base for Multical Energy HiRes sensor calculation
 # Sensor could be made internal, as it's not really needed in HA
 # Register returns a total increasing value with an unknown offset
 # Currently it's unknown when resister is reset and how to trigger this (no optical sensor on module for xx hours ?)
-- name: "Energy HiRes raw"
+- name: "Energy HiRes (raw)"
   platform: template
   id: m_energy_high
   #internal: true
@@ -337,7 +338,8 @@ sensor:
 - name: "Volume"
   platform: template
   id: m_volume
-  unit_of_measurement: m3
+  icon: "mdi:water-pump"
+  unit_of_measurement: m³
   accuracy_decimals: 2
   state_class: "measurement"
 
@@ -359,7 +361,7 @@ sensor:
   state_class: "measurement"
   device_class: "temperature"
 
-- name: "Temperature Diff"
+- name: "Temperature Differential"
   platform: template
   id: m_tdiff
   icon: "mdi:thermometer"
@@ -380,6 +382,7 @@ sensor:
 - name: "Flow"
   platform: template
   id: m_flow
+  icon: "mdi:speedometer"
   unit_of_measurement: l/h
   accuracy_decimals: 0
   state_class: "measurement"
