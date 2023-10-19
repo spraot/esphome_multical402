@@ -2,6 +2,14 @@
 
 ## This fork contains following changes: ##
 
+### 181023
+Added:
+- Yearly Cooling average sensor + timestamp. Autoresets at January 1st, 00.00 hours
+
+Revised:
+- Various logging messages
+
+
 ### 171023
 Revised:
 - Registers returning zero values was previously ignored and not sensor updated (was treated as an error read). Now sensors will be updated with zero values
