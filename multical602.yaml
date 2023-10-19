@@ -30,7 +30,7 @@ substitutions:
   # uart_rx: '16' # GPIO16 = D25 - Default RX pin for hardware UART#2 on ESP32 modules
   stop_bit: '2' # Set to 2 for Multical 402/602. Set to 1 for Multical403 meter ?
   update_millis: '300000' # Update interval in milliseconds (5 min. interval)
-
+  energy_uom: '860' # Use 860 for energy registers that use MWh as unit of measurement. Use 0.86 if UOM is kWh
 
 ###############################################
 #               Main YAML block               #
@@ -45,7 +45,7 @@ esphome:
   includes:
     - kmp.h
     - multical402.h
-  # After boot delta_base will be calculated (two attemtps)
+  # Upon boot, delta_base will be calculated (two attemtps)
   # Cooling average sensor base values and timestamp will, if possible, be restored from RTC memory (won't survive a power cycle)
   # If they are unavailable, base values will be reset to current values (energy and volume) and timestamp will be set to .now()
   # Various info, warnings, status and errors are written to the log 
@@ -62,20 +62,20 @@ esphome:
             id(energy_lowres_2digits) = id(temp) / 1000;
             id(delta_base) = id(energy_lowres_2digits) - id(m_energy_high).state;
             ESP_LOGI("custom", "delta_base has now been calculated to: %f MWh", id(delta_base));
-            if (id(cooling_volume_base) == -1 || id(daily_energy_base) == -1) {
+            if (id(cooling_volume_base) == -1 || id(cooling_energy_base) == -1) {
               id(cooling_volume_base) = id(m_volume).state;
-              id(daily_energy_base) = id(energy_lowres_2digits);
+              id(cooling_energy_base) = id(energy_lowres_2digits);
               id(cooling_last_update).publish_state(id(homeassistant_time).now().timestamp);
               id(cooling_last_update_retained) = id(cooling_last_update).state;
-              ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now set to current register values: %f MWh  %f m3", id(daily_energy_base), id(cooling_volume_base));
+              ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now both are set to current register values: %f MWh and %f m3", id(cooling_energy_base), id(cooling_volume_base));
             } else {
               id(cooling_last_update).publish_state(id(cooling_last_update_retained));
-              ESP_LOGI("custom", "Cooling base variables were retained. Current values: %f MWh  %f m3", id(daily_energy_base), id(cooling_volume_base));  
+              ESP_LOGI("custom", "Cooling base variables were retained. Current values: %f MWh  %f m3", id(cooling_energy_base), id(cooling_volume_base));  
             }
           } else if (id(delta_base) == -1) {
             ESP_LOGW("custom", "First attempt - Base values could NOT be calculated. Values are still undefined");
-            if (id(cooling_volume_base) == -1 || id(daily_energy_base) == -1) {
-              ESP_LOGW("custom", "First attempt - One or both cooling base variables were NOT set! Current base values: %f MWh  %f m3", id(daily_energy_base), id(cooling_volume_base)); 
+            if (id(cooling_volume_base) == -1 || id(cooling_energy_base) == -1) {
+              ESP_LOGW("custom", "First attempt - One or both cooling base variables were NOT set! Current base values: %f MWh  %f m3", id(cooling_energy_base), id(cooling_volume_base)); 
             }
             ESP_LOGI("custom", "Wait for %d seconds before attempting second and final delta_base calculation", (int(${update_millis})/1000));
           }
@@ -86,22 +86,23 @@ esphome:
             id(energy_lowres_2digits) = id(temp) / 1000;
             id(delta_base) = id(energy_lowres_2digits) - id(m_energy_high).state;
             ESP_LOGI("custom", "Final attempt - delta_base has now been calculated to: %f MWh", id(delta_base));
-            if (id(cooling_volume_base) == -1 || id(daily_energy_base) == -1) {
+            if (id(cooling_volume_base) == -1 || id(cooling_energy_base) == -1) {
               id(cooling_volume_base) = id(m_volume).state;
-              id(daily_energy_base) = id(energy_lowres_2digits);
+              id(cooling_energy_base) = id(energy_lowres_2digits);
               id(cooling_last_update).publish_state(id(homeassistant_time).now().timestamp);
               id(cooling_last_update_retained) = id(cooling_last_update).state;
-              ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now set to current register values: %f MWh  %f m3", id(daily_energy_base), id(cooling_volume_base));
+              ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now both are set to current register values: %f MWh and %f m3", id(cooling_energy_base), id(cooling_volume_base));
             } else {
               id(cooling_last_update).publish_state(id(cooling_last_update_retained));
-              ESP_LOGI("custom", "Cooling base variables were retained. Current values: %f MWh  %f m3", id(daily_energy_base), id(cooling_volume_base));  
+              ESP_LOGI("custom", "Cooling base variables were retained. Current values: %f MWh  %f m3", id(cooling_energy_base), id(cooling_volume_base));  
             }
           } else if (id(delta_base) == -1) {
             ESP_LOGE("custom", "Final attempt - delta_base could NOT be calculated. Value still undefined: %f", id(delta_base));
-            if (id(cooling_volume_base) == -1 || id(daily_energy_base) == -1) {
-             ESP_LOGE("custom", "One or both cooling base variables were NOT set! Cooling average sensor output invalid!. Current base values: %f MWh  %f m3", id(daily_energy_base), id(cooling_volume_base)); 
+            if (id(cooling_volume_base) == -1 || id(cooling_energy_base) == -1) {
+             ESP_LOGE("custom", "One or both cooling base variables were NOT set! Cooling average sensor output invalid!. Current base values: %f MWh and %f m3", id(cooling_energy_base), id(cooling_volume_base)); 
             }
           }
+
 
 # Multical UART
 uart:
@@ -115,6 +116,7 @@ uart:
     # Multical 403 uses 1 stop bit ?
     stop_bits: ${stop_bit}
     #debug:
+
 
 # Enable logging
 logger:
@@ -151,7 +153,7 @@ web_server:
   port: 80
 
 
-# Reset Cooling yearly average sensor base data and timestamp at January 1st, 00.00 hours
+# Reset Yearly cooling average sensor base data and timestamp at January 1st, 00.00 hours
 time:
   - platform: homeassistant
     id: homeassistant_time
@@ -164,7 +166,7 @@ time:
       then:
         lambda: |-
           id(cooling_volume_base) = id(m_volume).state;
-          id(daily_energy_base) = id(energy_lowres_2digits);
+          id(cooling_energy_base) = id(energy_lowres_2digits);
           id(cooling_last_update).publish_state(id(homeassistant_time).now().timestamp);
           id(cooling_last_update_retained) = id(cooling_last_update).state;
           ESP_LOGI("custom", "All base values for Cooling average sensor has been reset. Happy New Year!!");
@@ -192,7 +194,7 @@ globals:
     type: double
     restore_value: yes
     initial_value: "-1"
-  - id: daily_energy_base
+  - id: cooling_energy_base
     type: double
     restore_value: yes
     initial_value: "-1"
@@ -202,7 +204,7 @@ globals:
     initial_value: "0"
 
 
-# Multical Custom Sensor (first variable is update interval in ms; 3600000 is 1 hour)
+# Multical Custom Sensor (${update_millis} contains the update interval in ms; 3600000 is 1 hour)
 # Set to 30000 ms = 5 min. update interval
 custom_component:
   - lambda: |-
@@ -249,7 +251,7 @@ sensor:
   entity_category: "diagnostic"
 
 # Timestamp sensor for last Cooling ability sensor reset
-# Sensor is upon change updated via calls from on_boot code
+# Sensor is updated via calls from on_boot code when timestamp changes
 - name: "Cooling average timestamp"
   platform: template
   id: cooling_last_update
@@ -263,7 +265,7 @@ sensor:
 # But the base values won't survive a power cycle reset on the device and will at boot be reset to current energy/volume states.
 #
 # Note: Energy HiRes sensor update is called from lambda for this sensor
-# If Energy Register UOM is kWh, then change 860 to 0.86 in the sensor calculation
+# If your Energy registers UOM is kWh, then change 860 to 0.86 in the sensor calculation below
 - name: "Cooling average"
   platform: template
   id: cooling
@@ -275,10 +277,10 @@ sensor:
   device_class: "temperature"
   lambda: |-
       id(m_energy_hires).update();
-      double energy_consumed = id(m_energy_hires).state - id(daily_energy_base);
+      double energy_consumed = id(m_energy_hires).state - id(cooling_energy_base);
       double volume_consumed = id(m_volume).state - id(cooling_volume_base);
-      ESP_LOGI("custom", "Base MWh: %f  Base vol: %f  Calc MWh: %f  Calc Vol: %f  Calc cooling: %f", id(daily_energy_base), id(cooling_volume_base), energy_consumed, volume_consumed, (energy_consumed * 860) / volume_consumed);
-      return (energy_consumed * 860) / volume_consumed;
+      ESP_LOGI("custom", "Base MWh: %f  Base vol: %f  Consumed MWh: %f  Consumed Vol: %f  Calc. cooling: %f", id(cooling_energy_base), id(cooling_volume_base), energy_consumed, volume_consumed, (energy_consumed * 860) / volume_consumed);
+      return (energy_consumed * ${energy_uom}) / volume_consumed;
 
 # Calculated high resolution Energy sensor - delta base value added to the raw high resolution energy register
 # This high resolution sensor will provide additional 2 decimals resolution -> 0.01 kWh
@@ -295,12 +297,12 @@ sensor:
   device_class: "energy"
   lambda: |-
       if ((!isnan(id(m_energy_high).raw_state)) && id(delta_base) != -1) {
-        ESP_LOGI("custom", "delta_base set. Return calculated energy high resolution value: %f MWh", (id(m_energy_high).state + id(delta_base)));
+        ESP_LOGI("custom", "delta_base OK. Return calculated energy HiRes value: %f MWh", (id(m_energy_high).state + id(delta_base)));
         return (id(m_energy_high).state + id(delta_base));
       } else {
         id(temp) = roundf(id(m_energy).state * 1000);
         id(energy_lowres_2digits) = id(temp) / 1000;
-        ESP_LOGW("custom", "delta_base NOT set! Return standard low resolution energy register value: %f MWh", id(energy_lowres_2digits));
+        ESP_LOGW("custom", "delta_base NOT set! Return default LowRes energy register value: %f MWh", id(energy_lowres_2digits));
         return id(energy_lowres_2digits);
       }
 
