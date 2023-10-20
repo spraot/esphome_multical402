@@ -24,13 +24,15 @@ substitutions:
   ota_password: !secret multical602_ota_password
   # uart_tx: '1' # GPIO1 = D10 - TX pin for hardware UART on ESP8266
   # uart_rx: '3' # GPIO3 = D9  - TX pin for hardware UART on ESP8266
-  uart_tx: '5' # GPIO5 = D1 - Typical TX pin for software UART on ESP8266
-  uart_rx: '4' # GPIO4 = D2 - Typical RX pin for software UART on ESP8266
+  uart_tx: '5' # GPIO5 = D1 - Typical TX pin used for software UART on ESP8266
+  uart_rx: '4' # GPIO4 = D2 - Typical RX pin used for software UART on ESP8266
   # uart_tx: '17' # GPIO17 = D27 - Default TX pin for hardware UART#2 on ESP32 modules
   # uart_rx: '16' # GPIO16 = D25 - Default RX pin for hardware UART#2 on ESP32 modules
   stop_bit: '2' # Set to 2 for Multical 402/602. Set to 1 for Multical403 meter ?
-  update_millis: '300000' # Update interval in milliseconds (5 min. interval)
-  energy_uom: '860' # Use 860 for energy registers that use MWh as unit of measurement. Use 0.86 if UOM is kWh
+  update_millis: '300000' # Custom Sensor update interval in milliseconds (5 minutes interval)
+  #energy_uom: '0.86' # Use this value for energy registers that use kWh as UOM (Multical 403)
+  energy_uom: '860' # Use this value for energy registers that use MWh as UOM (Multical 602 and 402 ?)
+
 
 ###############################################
 #               Main YAML block               #
@@ -46,8 +48,8 @@ esphome:
     - kmp.h
     - multical402.h
   # Upon boot, delta_base will be calculated (two attemtps)
-  # Cooling average sensor base values and timestamp will, if possible, be restored from RTC memory (won't survive a power cycle)
-  # If they are unavailable, base values will be reset to current values (energy and volume) and timestamp will be set to .now()
+  # Cooling average sensor base values and timestamp will, if possible, be restored from RTC memory (won't survive an ESP power cycle)
+  # If retained values are unavailable, base values will be reset to current values (energy and volume) and timestamp will be set to .now()
   # Various info, warnings, status and errors are written to the log 
   on_boot:
     priority: -100
@@ -174,8 +176,8 @@ time:
 
 globals:
   # Define delta_base with -1 as initial value. delta_base will be calculated upon ESPHome boot
-  # If first calculation attempt fails, code will wait for the defined wait period between register reads and retry once more
-  # If the delta_base can't be calculated, then code will instead continuously return the default low resolution register value
+  # If first calculation attempt fails, code will wait for the defined throttle period between register reads and retry once more
+  # If delta_base can't be calculated, then code will instead continuously return the default low resolution register value
   #
   # Double type variables needed, as math with floats will not cope with the fraction sizes for the energy registers 
   - id: delta_base
@@ -205,7 +207,7 @@ globals:
 
 
 # Multical Custom Sensor (${update_millis} contains the update interval in ms; 3600000 is 1 hour)
-# Set to 30000 ms = 5 min. update interval
+# Set to 30000 ms = 5 minutes update interval
 custom_component:
   - lambda: |-
       auto multical402 = new Multical402(
@@ -265,7 +267,7 @@ sensor:
 # But the base values won't survive a power cycle reset on the device and will at boot be reset to current energy/volume states.
 #
 # Note: Energy HiRes sensor update is called from lambda for this sensor
-# If your Energy registers UOM is kWh, then change 860 to 0.86 in the sensor calculation below
+# If your Energy registers UOM is kWh, then change energy_uom value in substitutions from 860 to 0.86
 - name: "Cooling Average"
   platform: template
   id: cooling
@@ -279,7 +281,7 @@ sensor:
       id(m_energy_hires).update();
       double energy_consumed = id(m_energy_hires).state - id(cooling_energy_base);
       double volume_consumed = id(m_volume).state - id(cooling_volume_base);
-      ESP_LOGI("custom", "Base MWh: %f  Base m³: %f  Consumed MWh: %f  Consumed m³: %f  Calc. cooling °C: %f", id(cooling_energy_base), id(cooling_volume_base), energy_consumed, volume_consumed, (energy_consumed * 860) / volume_consumed);
+      ESP_LOGI("custom", "Base MWh: %f  Base m³: %f  Consumed MWh: %f  Consumed m³: %f  Calc. cooling °C: %f", id(cooling_energy_base), id(cooling_volume_base), energy_consumed, volume_consumed, (energy_consumed * ${energy_uom}) / volume_consumed);
       return (energy_consumed * ${energy_uom}) / volume_consumed;
 
 # Calculated high resolution Energy sensor - delta base value added to the raw high resolution energy register
@@ -306,9 +308,9 @@ sensor:
         return id(energy_lowres_2digits);
       }
 
-# Multical Custom Sensors
-#
-# High resolution energy register in MWh with five significant decimals
+# Multical Custom Sensors - Read directly from the Multical meter
+# 
+# Multical 602: High resolution energy register in MWh with five significant decimals -> Resolution 0.01kWh
 # Sensor is base for Multical Energy HiRes sensor calculation
 # Sensor could be made internal, as it's not really needed in HA
 # Register returns a total increasing value with an unknown offset
@@ -325,7 +327,9 @@ sensor:
   filters:
     - multiply: 0.000001
 
-# Multical 602 doesn't report additional significant decimals for this register -> Resolution is only 1 kWh
+# Multical 602 reports this register in UOM MWh -> Float with three significant decimals returned  -> Resolution 1 kWh
+# Multical 402 reports this register in UOM ?? Resolution ??
+# Multical 403 reports this register in UOM kWh -> Integer value returned -> Resolution 1 kWh 
 - name: "Energy"
   platform: template
   id: m_energy
