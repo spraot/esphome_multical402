@@ -28,11 +28,15 @@ substitutions:
   uart_rx: '4' # GPIO4 = D2 - Typical RX pin used for software UART on ESP8266
   # uart_tx: '17' # GPIO17 = D27 - Default TX pin for hardware UART#2 on ESP32 modules
   # uart_rx: '16' # GPIO16 = D25 - Default RX pin for hardware UART#2 on ESP32 modules
-  stop_bit: '2' # Set to 2 for Multical 402/602. Set to 1 for Multical403 meter ?
+  stop_bit: '2' # Set to 2 for Multical 402/403 & 602
   update_millis: '300000' # Custom Sensor update interval in milliseconds (5 minutes interval)
-  multical: '602' #  Define your Multical model 602,402 or 403
+  #  Define your Multical model below with 'REVERSE' true or false statements!
+  # This will hide unneeded HiRes sensors for other Multical models and not expose these to HA
+  model_402: 'true'   # Set to 'false' if your meter is Multical 402
+  model_403: 'true'   # Set to 'false' if your meter is Multical 403
+  model_602: 'false'  # Set to 'true' if your meter is Multical 402 or 403
   #energy_uom: '0.86' # Use this value for energy registers that use kWh as UOM (Multical 403)
-  energy_uom: '860' # Use this value for energy registers that use MWh as UOM (Multical 602 and 402 ? 
+  energy_uom: '860' # Use this value for energy registers that use MWh as UOM (Multical 602 and 402 ?)
 
 ###############################################
 #               Main YAML block               #
@@ -58,7 +62,7 @@ esphome:
           api.connected:  
       - delay: 20s
       - lambda: |-
-          if (${multical} == 602) {
+          if (!${model_602}) {
             ESP_LOGI("custom", "API connect + 20 seconds. Current delta_base value: %f", id(delta_base));
             if ((id(delta_base) == -1) && (!isnan(id(m_energy).raw_state)) && (!isnan(id(m_energy_high).raw_state))) {
               id(temp) = roundf(id(m_energy).state * 1000);
@@ -90,7 +94,7 @@ esphome:
           }
       - delay: !lambda "return ${update_millis};"
       - lambda: |-
-          if (${multical} == 602) {
+          if (!${model_602}) {
             if ((id(delta_base) == -1) && (!isnan(id(m_energy).raw_state)) && (!isnan(id(m_energy_high).raw_state))) {
               id(temp) = roundf(id(m_energy).state * 1000);
               id(energy_lowres_2digits) = id(temp) / 1000;
@@ -122,8 +126,6 @@ uart:
     baud_rate: 1200
     data_bits: 8
     parity: NONE
-    # Multical 402/602 uses 2 stop bits
-    # Multical 403 uses 1 stop bit ?
     stop_bits: ${stop_bit}
     #debug:
 
@@ -301,13 +303,15 @@ sensor:
   platform: template
   id: m_energy_hires
   update_interval: never
+  # If your meter model is Multical 602, then sensor will be exposed to HA
+  internal: ${model_602}
   icon: "mdi:lightning-bolt"
   unit_of_measurement: MWh
   accuracy_decimals: 5
   state_class: "total_increasing"
   device_class: "energy"
   lambda: |-
-      if (${multical} == 602) {
+      if (!${model_602}) {
         if ((!isnan(id(m_energy_high).raw_state)) && id(delta_base) != -1) {
           ESP_LOGI("custom", "delta_base OK. Return calculated energy HiRes value: %f MWh", (id(m_energy_high).state + id(delta_base)));
           return (id(m_energy_high).state + id(delta_base));
@@ -321,6 +325,7 @@ sensor:
         ESP_LOGI("custom", "Skipping update - Not a Multical 602 meter");
         return {};
       }
+
 # Multical Custom Sensors - Read directly from the Multical meter
 # 
 # Multical 602: High resolution energy register in MWh with five significant decimals -> Resolution 0.01kWh
@@ -331,7 +336,8 @@ sensor:
 - name: "Energy HiRes (raw)"
   platform: template
   id: m_energy_high
-  #internal: true
+  # If your meter model is Multical 602, then sensor will be exposed to HA
+  internal: ${model_602}
   icon: "mdi:lightning-bolt"
   unit_of_measurement: MWh
   accuracy_decimals: 5
@@ -353,10 +359,12 @@ sensor:
   device_class: "energy"
 
 # Multical 403 meter reports HiRes register in Wh
-# Revised sensor to kWh with three decimals
+# Revised sensor to return value to HA in kWh with three decimals
 - name: "Energy HiRes 403"
   platform: template
   id: m_energy_hires_403
+  # If your meter model is Multical 403, then sensor will be exposed to HA
+  internal: ${model_403}
   icon: "mdi:lightning-bolt"
   unit_of_measurement: kWh
   accuracy_decimals: 3
