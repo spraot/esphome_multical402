@@ -24,17 +24,18 @@ enum DestinationAddress : unsigned char
     LOGGER_BASE = 0xbf,
 };
 
-// Kamstrup Multical 402
+// Kamstrup Multical 402/403/602
 // The registers we want to get out of the meter
 const unsigned int registerIds[] = {
-    0x003C, // 60 - Heat energy - Standard resolution: 1 kwh)
+    0x003C, // 60 - Heat energy - Standard resolution (1 kWh)
     0x0050, // 80 - Current power
     0x0056, // 86 - Current forward temperature
     0x0057, // 87 - Current return temperature
     0x0059, // 89 - Current differential temperature
     0x004A, // 74 - Current water flow
-    0x0044,  // 68 - Volume register V1
-    0x009B // 155 - Heat energy - High resolution: xx kwh)
+    0x0044, // 68 - Volume register V1
+    0x010A, // 266 - Heat energy - Multical 403 High resolution (1 Wh)
+    0x009B  // 155 - Heat energy - Multical 602 High resolution (0.01 kWh)
     // 0x03EA, // XXXX - Time
     // 0x03EB, // XXXX - Date
     // 0x03E9  // XXXX - Serial number
@@ -49,6 +50,7 @@ const char *kregstrings[] = {
     "Temperature diff",
     "Flow",
     "Volume",
+    "Energy_hires_0403",
     "Energy_high"};
 
 static const char *TAG = "Multical402";
@@ -90,9 +92,13 @@ public:
     {
         return KMP::Read(registerIds[6]);
     }
-    float HeatEnergy_high()
+    float HeatEnergy_hires_403()
     {
         return KMP::Read(registerIds[7]);
+    }
+    float HeatEnergy_high()
+    {
+        return KMP::Read(registerIds[8]);
     }
 
 private:

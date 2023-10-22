@@ -19,6 +19,7 @@ public:
   Sensor *sensor_tempdiff{nullptr};
   Sensor *sensor_flow{nullptr};
   Sensor *sensor_volume{nullptr};
+  Sensor *sensor_energy_hires_403{nullptr};
   Sensor *sensor_energy_high{nullptr};
 
   // constructor
@@ -32,6 +33,7 @@ public:
       Sensor *m__tdiff,
       Sensor *m__flow,
       Sensor *m__volume,
+      Sensor *m__energy_hires_403,
       Sensor *m__energy_high) : PollingComponent(update_interval),
                                 sensor_energy(m__energy),
                                 sensor_power(m__power),
@@ -40,6 +42,7 @@ public:
                                 sensor_tempdiff(m__tdiff),
                                 sensor_flow(m__flow),
                                 sensor_volume(m__volume),
+                                sensor_energy_hires_403(m__energy_hires_403),
                                 sensor_energy_high(m__energy_high)
   {
     _kmp = new KMP(uart_bus);
@@ -80,6 +83,10 @@ public:
     float flow = _kmp->CurrentWaterFlow();
     if (flow != -1)
       sensor_flow->publish_state(flow);
+
+    float energy_hires_403 = _kmp->HeatEnergy_hires_403();
+    if (energy_hires_403 != -1)
+      sensor_energy_hires_403->publish_state(energy_hires_403);
 
     float energy_high = _kmp->HeatEnergy_high();
     if (energy_high != -1)
