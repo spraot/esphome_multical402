@@ -322,30 +322,12 @@ sensor:
           return id(energy_lowres_2digits);
         }
       } else {
-        ESP_LOGI("custom", "Skipping update - Not a Multical 602 meter");
+        ESP_LOGI("custom", "Not a Multical 602 meter - Skipping update");
         return {};
       }
 
 # Multical Custom Sensors - Read directly from the Multical meter
-# 
-# Multical 602: High resolution energy register in MWh with five significant decimals -> Resolution 0.01kWh
-# Sensor is base for Multical Energy HiRes sensor calculation
-# Sensor could be made internal, as it's not really needed in HA
-# Register returns a total increasing value with an unknown offset
-# Currently it's unknown when resister is reset and how to trigger this (no optical sensor on module for xx hours ?)
-- name: "Energy HiRes (raw)"
-  platform: template
-  id: m_energy_high
-  # If your meter model is Multical 602, then sensor will be exposed to HA
-  internal: ${model_602}
-  icon: "mdi:lightning-bolt"
-  unit_of_measurement: MWh
-  accuracy_decimals: 5
-  state_class: "total_increasing"
-  device_class: "energy"
-  filters:
-    - multiply: 0.000001
-
+#
 # Multical 602 reports this register in UOM MWh -> Float with three significant decimals returned  -> Resolution 1 kWh
 # Multical 402 reports this register in UOM ?? Resolution ??
 # Multical 403 reports this register in UOM kWh -> Integer value returned -> Resolution 1 kWh 
@@ -372,6 +354,24 @@ sensor:
   device_class: "energy"
   filters:
     - multiply: 0.001
+
+# Multical 602 meter - High resolution energy register in MWh with five significant decimals -> Resolution 0.01kWh
+# Sensor is base for Multical Energy HiRes sensor calculation
+# Sensor could be made internal, as it's not really needed in HA
+# Register returns a total increasing value with an unknown offset
+# Currently it's unknown when resister is reset and how to trigger this (no optical sensor on module for xx hours ?)
+- name: "Energy HiRes (raw)"
+  platform: template
+  id: m_energy_high
+  # If your meter model is Multical 602, then sensor will be exposed to HA
+  internal: ${model_602}
+  icon: "mdi:lightning-bolt"
+  unit_of_measurement: MWh
+  accuracy_decimals: 5
+  state_class: "total_increasing"
+  device_class: "energy"
+  filters:
+    - multiply: 0.000001
 
 - name: "Volume"
   platform: template
