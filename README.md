@@ -5,7 +5,7 @@
 ### 221023
 Added:
 - Energy HiRes sensor for Multical 403 meters
-- multical meter type defined in substitutions. Remember to alter to your meter type
+- Multical meter type defined in substitutions. Remember to alter to YOUR meter type!
 
 Revised:
 - Separate calculation of cooling average sensors base values
