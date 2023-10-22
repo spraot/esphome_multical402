@@ -6,6 +6,7 @@
 Added:
 - Energy HiRes sensor for Multical 403 meters
 - Multical meter type defined in substitutions. Remember to alter to YOUR meter type!
+- energy_uom added in substitutions. Change default 860 to 0.86, if you use a meter with kWh as UOM for Energy registers
 
 Revised:
 - Separate calculation of cooling average sensors base values
