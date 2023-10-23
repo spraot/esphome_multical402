@@ -51,10 +51,11 @@ esphome:
   includes:
     - kmp.h
     - multical402.h
-  # Upon boot, delta_base will be calculated (two attemtps)
+  # Upon boot, delta_base will be calculated. delta_base + Energy HiRes register read = calculated Energy HiRes sensor exposed to HA
   # Cooling average sensor base values and timestamp will, if possible, be restored from RTC memory (won't survive an ESP power cycle)
   # If retained values are unavailable, base values will be reset to current values (energy and volume) and timestamp will be set to .now()
-  # Various info, warnings, status and errors are written to the log 
+  # Various info, warnings, status and errors are written to the log
+  # Calculation loop will run indefinitely until both delta_base and cooling average sensor base values are calculated 
   on_boot:
     priority: -100
     then:
@@ -62,60 +63,47 @@ esphome:
           api.connected:  
       - delay: 20s
       - lambda: |-
-          if (!${model_602}) {
-            ESP_LOGI("custom", "API connect + 20 seconds. Current delta_base value: %f", id(delta_base));
-            if ((id(delta_base) == -1) && (!isnan(id(m_energy).raw_state)) && (!isnan(id(m_energy_high).raw_state))) {
-              id(temp) = roundf(id(m_energy).state * 1000);
-              id(energy_lowres_2digits) = id(temp) / 1000;
-              id(delta_base) = id(energy_lowres_2digits) - id(m_energy_high).state;
-              ESP_LOGI("custom", "delta_base has now been calculated to: %f MWh", id(delta_base));
-            } else if (id(delta_base) == -1) {
-              ESP_LOGW("custom", "First attempt - delta_base value could NOT be calculated. Value is still undefined");
-              ESP_LOGI("custom", "Wait for %d seconds before attempting second and final delta_base calculation", (int(${update_millis})/1000));
-            }
-          } else {
-            ESP_LOGI("custom", "Skip Multical 602 HiRes sensor delta_base calculation");
-          }
-      - lambda: |-
-          if (id(cooling_volume_base) == -1 || id(cooling_energy_base) == -1) {
-            if ((!isnan(id(m_volume).raw_state)) && (!isnan(id(m_energy).raw_state))) {
-              id(cooling_volume_base) = id(m_volume).state;
-              id(cooling_energy_base) = id(m_energy).state;
-              id(cooling_last_update).publish_state(id(homeassistant_time).now().timestamp);
-              id(cooling_last_update_retained) = id(cooling_last_update).state;
-              ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now both are set to current register values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));
-            } else {
-              ESP_LOGW("custom", "First attempt - One or both cooling base variables were NOT set! Current base values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));
-              ESP_LOGI("custom", "Wait for %d seconds before attempting second and final cooling base variables calculation", (int(${update_millis})/1000));
-            }
-          } else {
-            id(cooling_last_update).publish_state(id(cooling_last_update_retained));
-            ESP_LOGI("custom", "Cooling base variables were retained. Current values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));  
-          }
-      - delay: !lambda "return ${update_millis};"
-      - lambda: |-
-          if (!${model_602}) {
-            if ((id(delta_base) == -1) && (!isnan(id(m_energy).raw_state)) && (!isnan(id(m_energy_high).raw_state))) {
-              id(temp) = roundf(id(m_energy).state * 1000);
-              id(energy_lowres_2digits) = id(temp) / 1000;
-              id(delta_base) = id(energy_lowres_2digits) - id(m_energy_high).state;
-              ESP_LOGI("custom", "Final attempt - delta_base has now been calculated to: %f MWh", id(delta_base));
-            } else if (id(delta_base) == -1) {
-              ESP_LOGE("custom", "Final attempt - delta_base could NOT be calculated! Value still undefined: %f", id(delta_base));
-            }
-          }
-      - lambda: |-
-          if (id(cooling_volume_base) == -1 || id(cooling_energy_base) == -1) {
-            if ((!isnan(id(m_volume).raw_state)) && (!isnan(id(m_energy).raw_state))) {
-              id(cooling_volume_base) = id(m_volume).state;
-              id(cooling_energy_base) = id(m_energy).state;
-              id(cooling_last_update).publish_state(id(homeassistant_time).now().timestamp);
-              id(cooling_last_update_retained) = id(cooling_last_update).state;
-              ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now both are set to current register values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));
-            } else {
-              ESP_LOGE("custom", "Last attempt - One or both cooling base variables were NOT set! Cooling average sensor output invalid! Current base values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));
-            }
-          }  
+          ESP_LOGI("custom", "API connect + 20 seconds. Initiate base value calculations");
+      - while:
+          condition:
+          - lambda: |-
+              return ((id(delta_base) == -1) || (id(cooling_volume_base) == -1 || id(cooling_energy_base) == -1));
+          then:  
+          - lambda: |-
+              static int num_executions = 1;
+              ESP_LOGI("custom", "Base values calculation loop no. #%d", num_executions);
+              num_executions += 1;
+              if (!${model_602}) {
+                ESP_LOGI("custom", "Current delta_base value: %f", id(delta_base));
+                if ((id(delta_base) == -1) && (!isnan(id(m_energy).raw_state)) && (!isnan(id(m_energy_high).raw_state))) {
+                  id(temp) = roundf(id(m_energy).state * 1000);
+                  id(energy_lowres_2digits) = id(temp) / 1000;
+                  id(delta_base) = id(energy_lowres_2digits) - id(m_energy_high).state;
+                  ESP_LOGI("custom", "delta_base has now been calculated to: %f MWh", id(delta_base));
+                } else if (id(delta_base) == -1) {
+                  ESP_LOGE("custom", "delta_base value could NOT be calculated. Value is still undefined");
+                  ESP_LOGW("custom", "Wait for %d seconds before attempting delta_base value calculation again", (int(${update_millis})/1000));
+                }
+              } else {
+                ESP_LOGI("custom", "Skip Multical 602 HiRes sensor delta_base calculation");
+              }    
+          - lambda: |-
+              if (id(cooling_volume_base) == -1 || id(cooling_energy_base) == -1) {
+                if ((!isnan(id(m_volume).raw_state)) && (!isnan(id(m_energy).raw_state))) {
+                  id(cooling_volume_base) = id(m_volume).state;
+                  id(cooling_energy_base) = id(m_energy).state;
+                  id(cooling_last_update).publish_state(id(homeassistant_time).now().timestamp);
+                  id(cooling_last_update_retained) = id(cooling_last_update).state;
+                  ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now both are set to current register values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));
+                } else {
+                  ESP_LOGE("custom", "One or both cooling base variables were NOT set! Current base values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));
+                  ESP_LOGW("custom", "Wait for %d seconds before attempting base variable calculations again", (int(${update_millis})/1000));
+                }
+              } else {
+                id(cooling_last_update).publish_state(id(cooling_last_update_retained));
+                ESP_LOGI("custom", "Cooling base variables were retained. Current values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));  
+              }
+          - delay: !lambda "return ${update_millis};"
 
 
 # Multical UART
@@ -424,3 +412,14 @@ sensor:
   unit_of_measurement: l/h
   accuracy_decimals: 0
   state_class: "measurement"
+
+
+text_sensor:     
+- name: "Multical Latest Status"
+  platform: template
+  id: m_status  
+- name: "Multical Info"
+  platform: template
+  id: m_info
+  update_interval: 60 sec
+ 
