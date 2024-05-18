@@ -199,9 +199,9 @@ wifi:
   #   gateway: ${gateway}
   #   subnet: 255.255.255.0
   # Enable fallback hotspot (captive portal) in case WiFi connection fails
-  # ap:
-  #   ssid: ${friendly_name} FB Hotspot
-  #   password: ${ap_password}
+  ap:
+    ssid: ${friendly_name} FB Hotspot
+    password: !secret hotspot_password
 
 
 captive_portal:
