@@ -170,7 +170,7 @@ mqtt:
       #     value: !lambda 'return atoi(x.c_str());'
   log_topic:
     topic: utilities/debug
-    level: WARN
+    level: ERROR
   birth_message:
     topic: utilities/availability
     payload: online
