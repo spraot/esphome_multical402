@@ -360,7 +360,8 @@ sensor:
       input: true
       pullup: true
     # allow_other_uses: true
-  internal_filter: 100ms
+  internal_filter: 110ms  # HRI meter pulse minimum width is 124ms
+  internal_filter_mode: PULSE
   unit_of_measurement: "liter/min"
   timeout: 5min
   icon: "mdi:water"
@@ -412,14 +413,13 @@ sensor:
   platform: template
   id: cooling
   state_topic: utilities/heat/cooling
-  update_interval: 60s
+  update_interval: never
   icon: "mdi:thermometer"
   unit_of_measurement: °C
   accuracy_decimals: 2
   state_class: "measurement"
   device_class: "temperature"
   lambda: |-
-      id(m_energy_hires).update();
       double energy_consumed = id(m_energy).state - id(cooling_energy_base);
       double volume_consumed = id(m_volume).state - id(cooling_volume_base);
       ESP_LOGI("custom", "Base MWh: %f  Base m³: %f  Consumed MWh: %f  Consumed m³: %f  Calc. cooling °C: %f", id(cooling_energy_base), id(cooling_volume_base), energy_consumed, volume_consumed, (energy_consumed * ${energy_uom}) / volume_consumed);
@@ -444,6 +444,12 @@ sensor:
   lambda: |-
       if (!${model_602}) {
         if ((!isnan(id(m_energy_high).raw_state)) && id(delta_base) != -1) {
+          if (id(m_energy_hires).state - 1 > (id(m_energy_high).state + id(delta_base))) {
+            id(temp) = roundf(id(m_energy).state * 1000);
+            id(energy_lowres_2digits) = id(temp) / 1000;
+            id(delta_base) = id(energy_lowres_2digits) - id(m_energy_high).state;
+            ESP_LOGI("custom", "delta_base has now been calculated to: %f kWh", id(delta_base));
+          }
           ESP_LOGD("custom", "delta_base: %f. Return calculated energy HiRes value: %f MWh", delta_base, (id(m_energy_high).state + id(delta_base)));
           return (id(m_energy_high).state + id(delta_base));
         } else {
@@ -506,6 +512,10 @@ sensor:
   device_class: "energy"
   filters:
     - multiply: 0.001
+  on_value:
+    then:
+      - lambda: |-
+          id(m_energy_hires).update();
 
 - name: "Volume"
   platform: template
@@ -515,6 +525,10 @@ sensor:
   unit_of_measurement: m³
   accuracy_decimals: 2
   state_class: "measurement"
+  on_value:
+    then:
+      - lambda: |-
+          id(cooling).update();
 
 - name: "Temperature In"
   platform: template
