@@ -134,7 +134,26 @@ uart:
 # Enable logging
 logger:
   baud_rate: 0
-
+  level: INFO
+  on_message:
+    level: INFO
+    then:
+      - http_request.post:
+          url: http://alpha:4040
+          headers:
+            Content-Type: application/json
+          json: 
+            message: !lambda return message;
+            level: !lambda return to_string(level);
+            tag: !lambda return tag;
+            platform: esphome
+            host: esphome
+            appname: ${device_name}
+            
+http_request:
+  useragent: esphome/${device_name}
+  timeout: 5s
+  esp8266_disable_ssl_support: true
   
 # Enable Home Assistant API
 api:
@@ -170,8 +189,8 @@ mqtt:
       #     id: total_water_pulses
       #     value: !lambda 'return atoi(x.c_str());'
   log_topic:
-    topic: ${root_topic}/debug
-    level: ERROR
+    topic: 
+    level: NONE
   birth_message:
     topic: ${root_topic}/bridge/availability
     payload: online
