@@ -38,6 +38,7 @@ substitutions:
   model_602: 'false'  # Set to 'true' if your meter is Multical 402 or 403
   energy_uom: '0.86' # Use this value for energy registers that use kWh as UOM (Multical 403)
   #energy_uom: '860' # Use this value for energy registers that use MWh as UOM (Multical 602 and 402 ?)
+  root_topic: utilities
 
 ###############################################
 #               Main YAML block               #
@@ -157,9 +158,9 @@ mqtt:
   broker: !secret mqtt_broker
   username: !secret mqtt_username
   password: !secret mqtt_password
-  topic_prefix: utilities
+  topic_prefix: ${root_topic}
   on_message:
-    topic: utilities/water/meter/set
+    topic: ${root_topic}/water/meter/set
     qos: 0
     then:
       - pulse_meter.set_total_pulses:
@@ -169,20 +170,20 @@ mqtt:
       #     id: total_water_pulses
       #     value: !lambda 'return atoi(x.c_str());'
   log_topic:
-    topic: utilities/debug
+    topic: ${root_topic}/debug
     level: ERROR
   birth_message:
-    topic: utilities/availability
+    topic: ${root_topic}/bridge/availability
     payload: online
     qos: 0
     retain: true
   will_message:
-    topic: utilities/availability
+    topic: ${root_topic}/bridge/availability
     payload: offline
     qos: 0
     retain: false
   shutdown_message:
-    topic: utilities/availability
+    topic: ${root_topic}/bridge/availability
     payload: offline
     qos: 0
     retain: false
@@ -200,7 +201,7 @@ wifi:
   #   subnet: 255.255.255.0
   # Enable fallback hotspot (captive portal) in case WiFi connection fails
   ap:
-    ssid: ${friendly_name} FB Hotspot
+    ssid: ${deviceid} Hotspot
     password: !secret hotspot_password
 
 
@@ -301,7 +302,7 @@ sensor:
 # Uptime sensor / WiFi strength in db and percentage
 - name: "Uptime Sensor"
   platform: uptime
-  state_topic: utilities/bridge/uptime
+  state_topic: ${root_topic}/bridge/uptime
 
 - name: "WiFi Strength dBm"
   platform: wifi_signal
@@ -318,7 +319,7 @@ sensor:
     - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
   unit_of_measurement: "%"
   entity_category: "diagnostic"
-  state_topic: utilities/bridge/wifi_signal
+  state_topic: ${root_topic}/bridge/wifi_signal
 
 # - name: "water pulse"
 #   platform: pulse_counter
@@ -335,7 +336,7 @@ sensor:
 # - name: "Water Pulse Meter"
 #   platform: pulse_meter
 #   id: water_pulse
-#   state_topic: utilities/water/pulse
+#   state_topic: ${root_topic}/water/pulse
 #   pin:
 #     number: ${water_pulse_pin}
 #     inverted: true
@@ -352,7 +353,7 @@ sensor:
 - name: "Water Flow"
   platform: pulse_meter
   id: water_flow
-  state_topic: utilities/water/flow
+  state_topic: ${root_topic}/water/flow
   pin:
     number: ${water_pulse_pin}
     inverted: true
@@ -367,7 +368,7 @@ sensor:
   icon: "mdi:water"
   total:
     name: "Water Meter Total"
-    state_topic: utilities/water/meter
+    state_topic: ${root_topic}/water/meter
     unit_of_measurement: "m³"
     id: water_meter_total
     accuracy_decimals: 3
@@ -397,7 +398,7 @@ sensor:
 - name: "Cooling Average Timestamp"
   platform: template
   id: cooling_last_update
-  state_topic: utilities/heat/cooling_last_update
+  state_topic: ${root_topic}/heat/cooling_last_update
   update_interval: never
   device_class: timestamp
 
@@ -412,7 +413,7 @@ sensor:
 - name: "Cooling Average"
   platform: template
   id: cooling
-  state_topic: utilities/heat/cooling
+  state_topic: ${root_topic}/heat/cooling
   update_interval: never
   icon: "mdi:thermometer"
   unit_of_measurement: °C
@@ -432,7 +433,7 @@ sensor:
 - name: "Energy HiRes"
   platform: template
   id: m_energy_hires
-  state_topic: utilities/heat/energy_hires
+  state_topic: ${root_topic}/heat/energy_hires
   update_interval: never
   # If your meter model is Multical 602, then sensor will be exposed to HA
   internal: ${model_602}
@@ -471,7 +472,7 @@ sensor:
 - name: "Energy"
   platform: template
   id: m_energy
-  state_topic: utilities/heat/energy
+  state_topic: ${root_topic}/heat/energy
   icon: "mdi:lightning-bolt"
   unit_of_measurement: kWh
   accuracy_decimals: 2
@@ -520,7 +521,7 @@ sensor:
 - name: "Volume"
   platform: template
   id: m_volume
-  state_topic: utilities/heat/volume
+  state_topic: ${root_topic}/heat/volume
   icon: "mdi:water-pump"
   unit_of_measurement: m³
   accuracy_decimals: 2
@@ -533,7 +534,7 @@ sensor:
 - name: "Temperature In"
   platform: template
   id: m_tin
-  state_topic: utilities/heat/temp_in
+  state_topic: ${root_topic}/heat/temp_in
   icon: "mdi:thermometer"
   unit_of_measurement: °C
   accuracy_decimals: 2
@@ -543,7 +544,7 @@ sensor:
 - name: "Temperature Out"
   platform: template
   id: m_tout
-  state_topic: utilities/heat/temp_out
+  state_topic: ${root_topic}/heat/temp_out
   icon: "mdi:thermometer"
   unit_of_measurement: °C
   accuracy_decimals: 2
@@ -553,7 +554,7 @@ sensor:
 - name: "Temperature Differential"
   platform: template
   id: m_tdiff
-  state_topic: utilities/heat/temp_diff
+  state_topic: ${root_topic}/heat/temp_diff
   icon: "mdi:thermometer"
   unit_of_measurement: °C
   accuracy_decimals: 2
@@ -563,7 +564,7 @@ sensor:
 - name: "Power"
   platform: template
   id: m_power
-  state_topic: utilities/heat/power
+  state_topic: ${root_topic}/heat/power
   icon: "mdi:flash"
   unit_of_measurement: kW
   accuracy_decimals: 1
@@ -573,7 +574,7 @@ sensor:
 - name: "Flow"
   platform: template
   id: m_flow
-  state_topic: utilities/heat/flow
+  state_topic: ${root_topic}/heat/flow
   icon: "mdi:speedometer"
   unit_of_measurement: l/h
   accuracy_decimals: 1
@@ -584,10 +585,10 @@ text_sensor:
 - name: "Multical Latest Status"
   platform: template
   id: m_status
-  state_topic: utilities/heat/status
+  state_topic: ${root_topic}/heat/status
 - name: "Multical Info"
   platform: template
   id: m_info
-  state_topic: utilities/heat/info
+  state_topic: ${root_topic}/heat/info
   update_interval: 60 sec
  
