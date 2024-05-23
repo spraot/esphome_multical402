@@ -318,11 +318,12 @@ sensor:
 - name: "Uptime Sensor"
   platform: uptime
   state_topic: ${root_topic}/bridge/uptime
+  update_interval: 5min
 
 - name: "WiFi Strength dBm"
   platform: wifi_signal
   id: wifi_strength_dbm
-  update_interval: 60s
+  update_interval: 5min
   entity_category: "diagnostic"
   state_topic: null
 
