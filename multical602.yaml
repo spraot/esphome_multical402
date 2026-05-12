@@ -48,9 +48,6 @@ esphome:
   name: ${device_name}
   friendly_name: ${friendly_name}
   comment: ${device_description}
-  includes:
-    - kmp.h
-    - multical402.h
   # Upon boot, delta_base will be calculated. delta_base + Energy HiRes register read = calculated Energy HiRes sensor exposed to HA
   # Cooling average sensor base values and timestamp will, if possible, be restored from RTC memory (won't survive an ESP power cycle)
   # If retained values are unavailable, base values will be reset to current values (energy and volume) and timestamp will be set to .now()
@@ -140,7 +137,7 @@ logger:
     then:
       - http_request.post:
           url: http://alpha:4040
-          headers:
+          request_headers:
             Content-Type: application/json
           json: 
             message: !lambda return message;
@@ -208,7 +205,8 @@ mqtt:
     retain: false
 
 ota:
-  password: ${ota_password}
+  - platform: esphome
+    password: ${ota_password}
 
 wifi:
   ssid: ${wifi}
@@ -220,7 +218,7 @@ wifi:
   #   subnet: 255.255.255.0
   # Enable fallback hotspot (captive portal) in case WiFi connection fails
   ap:
-    ssid: ${deviceid} Hotspot
+    ssid: ${device_name} Hotspot
     password: !secret hotspot_password
 
 
@@ -280,26 +278,24 @@ globals:
   #   type: int
   #   restore_value: yes
 
-# Multical Custom Sensor (${update_millis} contains the update interval in ms; 3600000 is 1 hour)
-# Set to 30000 ms = 5 minutes update interval
-custom_component:
-  - lambda: |-
-      auto multical402 = new Multical402(
-        ${update_millis},
-        id(uart_bus),
-        id(m_energy),
-        id(m_power),
-        id(m_tin),
-        id(m_tout),
-        id(m_tdiff),
-        id(m_flow),
-        id(m_volume),
-        id(m_energy_hires_403),
-        id(m_energy_high));
-      App.register_component(multical402);
-      return {multical402};
-    components:
-      - id: multical
+external_components:
+  - source:
+      type: local
+      path: components
+
+# Multical custom component — reads registers over UART at update_interval
+multical402:
+  uart_id: uart_bus
+  update_interval: ${update_millis}ms
+  energy: m_energy
+  power: m_power
+  temp_in: m_tin
+  temp_out: m_tout
+  temp_diff: m_tdiff
+  flow: m_flow
+  volume: m_volume
+  energy_hires_403: m_energy_hires_403
+  energy_high: m_energy_high
 
 
 binary_sensor:
