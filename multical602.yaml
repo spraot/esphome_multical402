@@ -132,25 +132,21 @@ uart:
 logger:
   baud_rate: 0
   level: INFO
-  on_message:
-    level: INFO
-    then:
-      - http_request.post:
-          url: http://alpha:4040
-          request_headers:
-            Content-Type: application/json
-          json: 
-            message: !lambda return message;
-            level: !lambda return to_string(level);
-            tag: !lambda return tag;
-            platform: esphome
-            host: esphome
-            appname: ${device_name}
-            
-http_request:
-  useragent: esphome/${device_name}
-  timeout: 5s
-  esp8266_disable_ssl_support: true
+
+# Ship logger output to the homelab observability pipeline as UDP
+# syslog. Vector's syslog source listens on taco (192.168.1.228) and
+# fans the logs out to Loki + BetterStack — see modules/vector.nix in
+# the `home` repo. This replaces the ad-hoc http_request.post to
+# alpha:4040. The udp and syslog ports are both pinned to 5514 to
+# match Vector (which can't bind the privileged 514). The lone
+# `time:` block further down (homeassistant_time) is auto-selected.
+udp:
+  addresses: ["192.168.1.228"]
+  port: 5514
+
+syslog:
+  port: 5514
+  level: INFO
   
 # Enable Home Assistant API
 api:
