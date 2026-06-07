@@ -578,6 +578,10 @@ sensor:
   accuracy_decimals: 1
   state_class: "measurement"
   device_class: "power"
+  # Record every 5-min read even when unchanged. Without this, long idle
+  # stretches at 0 kW collapse to a single stored 0 (HA dedupes repeats),
+  # so time-at-zero is under-sampled and any average reads high.
+  force_update: true
 
 - name: "Flow"
   platform: template
@@ -587,6 +591,8 @@ sensor:
   unit_of_measurement: l/h
   accuracy_decimals: 1
   state_class: "measurement"
+  # Same as Power: keep recording 0 l/h while idle so averages aren't biased.
+  force_update: true
 
 
 text_sensor:     
