@@ -89,7 +89,7 @@ esphome:
                 if ((!isnan(id(m_volume).raw_state)) && (!isnan(id(m_energy).raw_state))) {
                   id(cooling_volume_base) = id(m_volume).state;
                   id(cooling_energy_base) = id(m_energy).state;
-                  id(cooling_last_update_retained) = id(homeassistant_time).now().timestamp;
+                  id(cooling_last_update_retained) = id(homeassistant_time).now().is_valid() ? id(homeassistant_time).now().timestamp : 0;
                   id(cooling_last_update).update();
                   ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now both are set to current register values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));
                 } else {
@@ -235,7 +235,7 @@ time:
         lambda: |-
           id(cooling_volume_base) = id(m_volume).state;
           id(cooling_energy_base) = id(m_energy).state;
-          id(cooling_last_update_retained) = id(homeassistant_time).now().timestamp;
+          id(cooling_last_update_retained) = id(homeassistant_time).now().is_valid() ? id(homeassistant_time).now().timestamp : 0;
           id(cooling_last_update).update();
           ESP_LOGI("custom", "All base values for Cooling average sensor has been reset. Happy New Year!!");
 
@@ -602,7 +602,9 @@ text_sensor:
   update_interval: never
   device_class: timestamp
   lambda: |-
-    if (id(cooling_last_update_retained) <= 0) return {};
+    // 0 = never stamped; a tiny epoch = stamped before HA time synced
+    // (seconds-since-boot, seen as 1970-01-01T00:00:28). Both are unknown.
+    if (id(cooling_last_update_retained) < 1000000000) return {};
     return ESPTime::from_epoch_utc((time_t) id(cooling_last_update_retained)).strftime("%Y-%m-%dT%H:%M:%S+00:00");
 - name: "Multical Latest Status"
   platform: template
