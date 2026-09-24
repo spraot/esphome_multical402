@@ -19,7 +19,6 @@ substitutions:
   password: !secret wifi_password_tp
   # ip: !secret static_ip_multical602
   # gateway: !secret gateway
-  ha_api_key: !secret api_key
   # ap_password: !secret wifi_ap_password
   ota_password: !secret multical602_ota_password
   water_pulse_pin: GPIO4 # GPIO2 = D4 - Pulse pin for water flow meter
@@ -56,11 +55,17 @@ esphome:
   on_boot:
     priority: -100
     then:
+      # MQTT is the only HA path (the native API was dropped 2026-09-23 to
+      # stop the device registering twice), so wait on MQTT + SNTP rather
+      # than on the API connecting.
       - wait_until:
-          api.connected:  
+          condition:
+            and:
+              - mqtt.connected:
+              - time.has_time:
       - delay: 20s
       - lambda: |-
-          ESP_LOGI("custom", "API connect + 20 seconds. Initiate base value calculations");
+          ESP_LOGI("custom", "MQTT + time + 20 seconds. Initiate base value calculations");
       - while:
           condition:
           - lambda: |-
@@ -89,7 +94,7 @@ esphome:
                 if ((!isnan(id(m_volume).raw_state)) && (!isnan(id(m_energy).raw_state))) {
                   id(cooling_volume_base) = id(m_volume).state;
                   id(cooling_energy_base) = id(m_energy).state;
-                  id(cooling_last_update_retained) = id(homeassistant_time).now().is_valid() ? id(homeassistant_time).now().timestamp : 0;
+                  id(cooling_last_update_retained) = id(sntp_time).now().is_valid() ? id(sntp_time).now().timestamp : 0;
                   id(cooling_last_update).update();
                   ESP_LOGW("custom", "One or both cooling base variables were NOT retained! Now both are set to current register values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));
                 } else {
@@ -139,7 +144,7 @@ logger:
 # the `home` repo. This replaces the ad-hoc http_request.post to
 # alpha:4040. The udp and syslog ports are both pinned to 5514 to
 # match Vector (which can't bind the privileged 514). The lone
-# `time:` block further down (homeassistant_time) is auto-selected.
+# `time:` block further down (sntp_time) is auto-selected.
 udp:
   addresses: ["192.168.1.228"]
   port: 5514
@@ -148,26 +153,10 @@ syslog:
   port: 5514
   level: INFO
   
-# Enable Home Assistant API
-api:
-  reboot_timeout: 0s
-  encryption:
-    key: ${ha_api_key}
-
-  services:
-    - service: set_water_total
-      variables:
-        new_total: int
-      then:
-        - pulse_meter.set_total_pulses:
-            id: water_flow
-            value: !lambda 'return new_total;'
-        # - globals.set:
-        #     id: total_water_pulses
-        #     value: !lambda 'return new_total;'
-
 mqtt:
-  broker: !secret mqtt_broker
+  # revpi's reserved LAN address. Was revpi.local via mDNS, which failed
+  # to resolve right before a drop-off on 2026-09-23.
+  broker: 192.168.1.231
   username: !secret mqtt_username
   password: !secret mqtt_password
   topic_prefix: ${root_topic}
@@ -208,10 +197,15 @@ wifi:
   ssid: ${wifi}
   password: ${password}
   fast_connect: true
-  # manual_ip:
-  #   static_ip: ${ip}
-  #   gateway: ${gateway}
-  #   subnet: 255.255.255.0
+  # Static IP: after a reboot this ESP8266 could sit for 3-40+ min in a
+  # DHCPDISCOVER/OFFER loop, never sending REQUEST (router log,
+  # 2026-09-23). Matches its reserved lease in the home repo's
+  # hosts/router/default.nix, so nothing else can take the address.
+  manual_ip:
+    static_ip: 192.168.1.174
+    gateway: 192.168.1.254
+    subnet: 255.255.255.0
+    dns1: 192.168.1.254
   # Enable fallback hotspot (captive portal) in case WiFi connection fails
   ap:
     ssid: ${device_name} Hotspot
@@ -223,8 +217,9 @@ captive_portal:
 
 # Reset Yearly cooling average sensor base data and timestamp at January 1st, 00.00 hours
 time:
-  - platform: homeassistant
-    id: homeassistant_time
+  - platform: sntp
+    id: sntp_time
+    timezone: Europe/Copenhagen
     on_time:
     - months: JAN
       days_of_month: 1
@@ -235,7 +230,7 @@ time:
         lambda: |-
           id(cooling_volume_base) = id(m_volume).state;
           id(cooling_energy_base) = id(m_energy).state;
-          id(cooling_last_update_retained) = id(homeassistant_time).now().is_valid() ? id(homeassistant_time).now().timestamp : 0;
+          id(cooling_last_update_retained) = id(sntp_time).now().is_valid() ? id(sntp_time).now().timestamp : 0;
           id(cooling_last_update).update();
           ESP_LOGI("custom", "All base values for Cooling average sensor has been reset. Happy New Year!!");
 
