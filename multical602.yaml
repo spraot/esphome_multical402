@@ -372,6 +372,16 @@ sensor:
   unit_of_measurement: "liter/min"
   timeout: 5min
   icon: "mdi:water"
+  # pulse_meter in PULSE mode occasionally counts one edge twice (the
+  # early "peeked" edge and the ISR's own count of it), which yields a
+  # pulse width of 5-6 µs and a published rate of 60e6 / 5 = 12,000,000
+  # L/min. Seen 11 times between 2026-09-27 and 2026-11-16. The highest
+  # real reading on record is 28.7 L/min, so anything from 100 up is
+  # dropped here rather than published.
+  filters:
+    - lambda: |-
+        if (x >= 100.0f) return {};
+        return x;
   total:
     name: "Water Meter Total"
     state_topic: ${root_topic}/water/meter
