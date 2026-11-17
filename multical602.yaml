@@ -53,7 +53,30 @@ esphome:
   # Various info, warnings, status and errors are written to the log
   # Calculation loop will run indefinitely until both delta_base and cooling average sensor base values are calculated 
   on_boot:
-    priority: -100
+  # Water total, fallback path. The normal path is the mqtt on_message
+  # below, which continues from the retained utilities/water/meter value.
+  # If the broker holds no retained value (first ever boot, broker state
+  # wiped), nothing arrives, so after 15 s start counting from the pulses
+  # seen since boot. HA reads that as an ordinary counter reset.
+  - priority: -100
+    then:
+      - wait_until:
+          condition:
+            mqtt.connected:
+      - delay: 15s
+      - if:
+          condition:
+            lambda: return !id(water_total_restored);
+          then:
+            - lambda: |-
+                ESP_LOGW("custom", "No retained water total on the broker; counting from boot");
+                id(water_total_restored) = true;
+            - pulse_meter.set_total_pulses:
+                id: water_flow
+                value: !lambda |-
+                  float seen = id(water_meter_total).raw_state;
+                  return std::isnan(seen) ? 0 : (uint32_t) seen;
+  - priority: -100
     then:
       # MQTT is the only HA path (the native API was dropped 2026-09-23 to
       # stop the device registering twice), so wait on MQTT + SNTP rather
@@ -106,14 +129,6 @@ esphome:
                 ESP_LOGI("custom", "Cooling base variables were retained. Current values: %f MWh and %f m³", id(cooling_energy_base), id(cooling_volume_base));  
               }
           - delay: !lambda "return ${update_millis};"
-  #     - pulse_meter.set_total_pulses:
-  #         id: water_flow
-  #         value: !lambda "return id(total_water_pulses);"
-  # on_shutdown:
-  #   then:
-  #     - globals.set:
-  #         id: total_water_pulses
-  #         value: !lambda 'return id(water_flow).raw_state;'
 
 esp8266:
   board: ${board}
@@ -161,15 +176,37 @@ mqtt:
   password: !secret mqtt_password
   topic_prefix: ${root_topic}
   on_message:
-    topic: ${root_topic}/water/meter/set
-    qos: 0
-    then:
-      - pulse_meter.set_total_pulses:
-          id: water_flow
-          value: !lambda 'return atoi(x.c_str());'
-      # - globals.set:
-      #     id: total_water_pulses
-      #     value: !lambda 'return atoi(x.c_str());'
+    - topic: ${root_topic}/water/meter/set
+      qos: 0
+      then:
+        - pulse_meter.set_total_pulses:
+            id: water_flow
+            value: !lambda 'return atoi(x.c_str());'
+    # Carry the water total across reboots. pulse_meter keeps its count in
+    # RAM only, but the total is published retained, so the broker still
+    # holds the last value HA saw. On (re)connect the broker replays it;
+    # the first one after boot becomes the starting count, plus any pulses
+    # counted since boot. Later messages on this topic are our own
+    # publishes echoed back and are ignored.
+    #
+    # Flash was tried first and is the wrong store: an OTA blocks the
+    # final preferences flush, and anything short of a lossless save shows
+    # up in HA as the counter going backwards.
+    - topic: ${root_topic}/water/meter
+      qos: 0
+      then:
+        - if:
+            condition:
+              lambda: return !id(water_total_restored);
+            then:
+              - lambda: |-
+                  id(water_total_restored) = true;
+                  ESP_LOGI("custom", "Water total continues from retained %s m³", x.c_str());
+              - pulse_meter.set_total_pulses:
+                  id: water_flow
+                  value: !lambda |-
+                    float seen = id(water_meter_total).raw_state;
+                    return (uint32_t) lround(atof(x.c_str()) * 1000.0) + (std::isnan(seen) ? 0 : (uint32_t) seen);
   log_topic:
     topic: 
     level: NONE
@@ -265,9 +302,14 @@ globals:
     type: double
     restore_value: yes
     initial_value: "0"
-  # - id: total_water_pulses
-  #   type: int
-  #   restore_value: yes
+  # False until the water total has been continued from the broker's
+  # retained value (or the 15 s fallback has given up waiting). While
+  # false the total is not published, so HA never sees the 0 that
+  # pulse_meter starts from.
+  - id: water_total_restored
+    type: bool
+    restore_value: no
+    initial_value: "false"
 
 external_components:
   - source:
@@ -391,10 +433,11 @@ sensor:
     device_class: water
     state_class: total_increasing
     filters:
-      - multiply: 0.001
-      # - lambda: |-
-      #     id(total_water_pulses) = id(water_flow).raw_state;
-      #     return x;
+      # Hold back every value until the count has been restored; the raw
+      # pulse count still accumulates in raw_state meanwhile.
+      - lambda: |-
+          if (!id(water_total_restored)) return {};
+          return x * 0.001f;
   on_value:
     then:
       - script.stop: variable_timeout
